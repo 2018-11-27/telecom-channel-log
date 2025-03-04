@@ -108,7 +108,9 @@ def register_flask_middleware():
         app.after_request(journallog_in)
 
 
-def logger(msg, **extra):
+def logger(msg, *args, **extra):
+    msg = msg % args
+
     f_back = inspect.currentframe().f_back
     level = f_back.f_code.co_name
     f_back = f_back.f_back
@@ -135,20 +137,20 @@ def logger(msg, **extra):
         getattr(glog, level)(msg, gname='stream')
 
 
-def debug(msg, **extra):
-    logger(msg, **extra)
+def debug(msg, *args, **extra):
+    logger(msg, *args, **extra)
 
 
-def info(msg, **extra):
-    logger(msg, **extra)
+def info(msg, *args, **extra):
+    logger(msg, *args, **extra)
 
 
-def warning(msg, **extra):
-    logger(msg, **extra)
+def warning(msg, *args, **extra):
+    logger(msg, *args, **extra)
 
 
-def error(msg, **extra):
-    logger(msg, **extra)
+def error(msg, *args, **extra):
+    logger(msg, *args, **extra)
 
 
 def trace(**extra):

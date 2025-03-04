@@ -39,10 +39,10 @@ def __init__(
     """
 
 
-def debug  (msg, **extra): pass
-def info   (msg, **extra): pass
-def warning(msg, **extra): pass
-def error  (msg, **extra): pass
+def debug  (msg, *args, **extra): pass
+def info   (msg, *args, **extra): pass
+def warning(msg, *args, **extra): pass
+def error  (msg, *args, **extra): pass
 
 def trace(**extra): pass  # 埋点日志
 
