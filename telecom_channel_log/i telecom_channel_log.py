@@ -109,8 +109,13 @@ def register_flask_middleware():
 
 
 def logger(msg, *args, **extra):
+    args = tuple(OmitLongString(v) for v in args)
+    extra = OmitLongString(extra)
+
     if isinstance(msg, (str, unicode)):
-        msg = msg % args
+        msg = (msg % args)[:1000]
+    elif isinstance(msg, (dict, list, tuple)):
+        msg = OmitLongString(msg)
 
     f_back = inspect.currentframe().f_back
     level = f_back.f_code.co_name
@@ -121,7 +126,7 @@ def logger(msg, *args, **extra):
         'level': level.upper(),
         'logger': __package__,
         'log_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
-        'code_message': msg[:3000],
+        'code_message': msg,
         'HOSTNAME': socket.gethostname(),
         'pathName': f_back.f_code.co_filename,
         'funcName': f_back.f_code.co_name,
@@ -161,6 +166,7 @@ exception = error
 
 
 def trace(**extra):
+    extra = OmitLongString(extra)
     extra.update({'app_name': this.appname + '_trace', 'level': 'TRACE'})
     glog.debug(jsonx.dumps(extra, ensure_ascii=False))
 
