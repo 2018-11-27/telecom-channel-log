@@ -1,0 +1,81 @@
+############################################################################
+## 开发人员维护这些变量即可
+variables:
+  # 生产环境：prod
+  # 准二：rc2
+  # 准一：rc1
+  PROFILE: rc1
+
+  # 版本号，用于确定使用哪个tag的代码，项目基于版本号打镜像
+  VERSION: 2025022701
+  # 项目名
+  APPNAME: realname-service
+  # 系统编号
+  SVCCODE: y123010101
+  # 容器端口
+  PORT: 4701
+  # Dockerfile文件名
+  DOCKERFILE: Dockerfile
+
+  # 集群编号
+  CLUSTER: CAAS-01-Z1
+  # 容器云namespace
+  NAMESPACE: y123
+  # 容器云分配的端口号
+  NODEPORT: 31198
+  # db.yml queue.yml 配置项名称
+  CONFIGNAME: smz-xb-services
+
+  # 日志采集 KAFKA_TOPIC
+  KAFKATOPIC: Y123010101_realname_xb
+
+  # 项目容器内日志路径
+  LOGPATH: /app/logs
+
+  # 静态代码扫描开关
+  SQON: ok
+  # 单元测试开关
+  # ok : 执行单元测试，不配置该参数默认不做单元测试。
+  UTON: ok
+  # 打包镜像
+  PACKIMAGE: p901050901.dzqd.lio:30443/library/python/ec-python2.7.18-pack:latest
+
+  # 环境变量
+  ENVS: "{'PLATKEY': '539e083947e5cee996f6b1ee77977178','PROFILE': 'rc1'}"
+
+  FBID: 500
+############################################################################
+
+
+############################################################################
+stages:
+- build
+- deploy
+
+build:
+  image: $PACKIMAGE
+  stage: build
+  script:
+  - cp /cicd/* ./
+  - ./pythonBuild.sh
+  only:
+  - tags
+  tags:
+  - k8s-nj
+  # 开发人员更改`runnerXX`为所在开发组的打包账号，项目组初次接入CI/CD流程需要在李春燕处申请；
+  - runner09-nj
+
+deploy:
+  image: p901050901.dzqd.lio:30443/library/ec-kubectl-image:latest
+  stage: deploy
+  script:
+  - cd /deploy
+  - ./deploy.sh
+  only:
+  - tags
+  tags:
+  - k8s-nj
+  # 开发人员更改`runnerXX`为所在开发组的打包账号，项目组初次接入CI/CD流程需要在李春燕处申请；
+  - runner09-nj
+
+############################################################################
