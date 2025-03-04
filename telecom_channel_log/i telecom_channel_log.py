@@ -115,7 +115,7 @@ def logger(msg, *args, **extra):
     if isinstance(msg, (str, unicode)):
         msg = (msg % args)[:1000]
     elif isinstance(msg, (dict, list, tuple)):
-        msg = OmitLongString(msg)
+        msg = jsonx.dumps(OmitLongString(msg), ensure_ascii=False)
 
     f_back = inspect.currentframe().f_back
     level = f_back.f_code.co_name
