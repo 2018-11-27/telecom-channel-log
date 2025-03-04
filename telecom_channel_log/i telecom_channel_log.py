@@ -109,7 +109,8 @@ def register_flask_middleware():
 
 
 def logger(msg, *args, **extra):
-    msg = msg % args
+    if isinstance(msg, (str, unicode)):
+        msg = msg % args
 
     f_back = inspect.currentframe().f_back
     level = f_back.f_code.co_name
@@ -149,8 +150,14 @@ def warning(msg, *args, **extra):
     logger(msg, *args, **extra)
 
 
+warn = warning
+
+
 def error(msg, *args, **extra):
     logger(msg, *args, **extra)
+
+
+exception = error
 
 
 def trace(**extra):

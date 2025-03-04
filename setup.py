@@ -2,14 +2,13 @@
 import sys
 import codecs
 import setuptools
-import telecom_channel_log
 
 if sys.version_info.major < 3:
     open = codecs.open
 
 setuptools.setup(
-    name=telecom_channel_log.__name__,
-    version='1.0',
+    name='telecom_channel_log',
+    version='1.0.1',
     author='Unnamed great master',
     author_email='<gqylpy@outlook.com>',
     license='MIT',
@@ -22,7 +21,7 @@ setuptools.setup(
     '''.strip().replace('\n       ', ''),
     long_description=open('README.md', encoding='utf8').read(),
     long_description_content_type='text/markdown',
-    packages=[telecom_channel_log.__name__],
+    packages=['telecom_channel_log'],
     python_requires='>=2.7',
     install_requires=['gqylpy_log==0.0a1'],
     extras_require={

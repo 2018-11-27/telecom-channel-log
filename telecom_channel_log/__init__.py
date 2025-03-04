@@ -39,10 +39,12 @@ def __init__(
     """
 
 
-def debug  (msg, *args, **extra): pass
-def info   (msg, *args, **extra): pass
-def warning(msg, *args, **extra): pass
-def error  (msg, *args, **extra): pass
+def debug    (msg, *args, **extra): pass
+def info     (msg, *args, **extra): pass
+def warning  (msg, *args, **extra): pass
+def warn     (msg, *args, **extra): pass
+def error    (msg, *args, **extra): pass
+def exception(msg, *args, **extra): pass
 
 def trace(**extra): pass  # 埋点日志
 
@@ -59,7 +61,7 @@ class _xe6_xad_x8c_xe7_x90_xaa_xe6_x80_xa1_xe7_x8e_xb2_xe8_x90_x8d_xe4_xba_x91:
     for gname in globals():
         if gname[0] != '_':
             gfunc = getattr(gcode, gname, None)
-            if gfunc and getattr(gfunc, '__module__', None) == gpath:
+            if gfunc:
                 gfunc.__module__ = __package__
                 gfunc.__doc__ = getattr(gpack, gname).__doc__
                 setattr(gpack, gname, gfunc)
