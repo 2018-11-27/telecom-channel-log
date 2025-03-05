@@ -8,7 +8,7 @@ def __init__(
         when                 =None,  # type: str, Set('W', 'D', 'H', 'M', 'S')
         interval             =None,  # type: int
         backup_count         =None,  # type: int
-        stream               =None,  # type: bool
+        output_to_terminal   =None,  # type: bool
         enable_journallog_in =None,  # type: bool
         enable_journallog_out=None   # type: bool
 ):
@@ -30,7 +30,7 @@ def __init__(
         `interval=1` 表示每天滚动一次）。
     @param backup_count:
         日志保留策略，控制最大历史版本数量，默认为 7。设为 0 则永久保留。
-    @param stream:
+    @param output_to_terminal:
         设为 True 日志将同时输出到终端，默认为 False。流水日志和埋点日志除外。
     @param enable_journallog_in:
         设为 True 表示启用内部流水日志，默认为 False。目前仅支持 Flask 框架。

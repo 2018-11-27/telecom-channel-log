@@ -84,6 +84,6 @@ log.__init__(..., enable_journallog_out=True)
 | when                  | str  | 'D'      | 轮转周期：W(周)/D(天)/H(时)/M(分)/S(秒) |
 | interval              | int  | 1        | 轮转频率                          |
 | backup_count          | int  | 7        | 历史日志保留数量（0=永久）                |
-| stream                | bool | False    | 启用后日志将同时输出到控制台                |
+| output_to_terminal    | bool | False    | 启用后日志将同时输出到控制台                |
 | enable_journallog_in  | bool | False    | 启用Flask请求流水日志                 |
 | enable_journallog_out | bool | False    | 启用Requests外部调用日志              |

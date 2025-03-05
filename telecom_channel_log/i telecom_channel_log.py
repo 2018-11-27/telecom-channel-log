@@ -6,6 +6,7 @@ import uuid
 import json as jsonx
 import socket
 import inspect
+import warnings
 import functools
 import threading
 
@@ -46,6 +47,8 @@ else:
 
 this = sys.modules[__name__]
 
+unique = object()
+
 
 def __init__(
         appname,
@@ -54,14 +57,23 @@ def __init__(
         when='D',
         interval=1,
         backup_count=7,
-        stream=False,
+        stream=unique,
+        output_to_terminal=None,
         enable_journallog_in=False,
         enable_journallog_out=False
 ):
     this.appname = appname
     this.syscode = syscode
 
-    this.stream = stream
+    if stream is not unique:
+        warnings.warn(
+            'parameter "stream" will be deprecated soon, replaced to '
+            '"output_to_terminal".', category=DeprecationWarning, stacklevel=2
+        )
+        if output_to_terminal is None:
+            output_to_terminal = stream
+
+    this.output_to_terminal = output_to_terminal
 
     handlers = []
     for level in 'debug', 'info', 'warning', 'error':
@@ -80,7 +92,7 @@ def __init__(
 
     glog.__init__(__package__, handlers=handlers, gname=__package__)
 
-    if stream:
+    if output_to_terminal:
         glog.__init__(
             'stream',
             formatter={
@@ -92,7 +104,9 @@ def __init__(
         )
 
     if enable_journallog_in and Flask is not None:
-        threading.Timer(1, register_flask_middleware).start()
+        thread = threading.Thread(target=register_flask_middleware)
+        thread.daemon = True
+        thread.start()
 
     if enable_journallog_out and requests is not None:
         requests.Session.request = journallog_out(requests.Session.request)
@@ -101,7 +115,7 @@ def __init__(
 def register_flask_middleware():
     start = time.time()
     while not Flask.__apps__ and time.time() - start < 30:
-        time.sleep(.1)
+        time.sleep(.01)
 
     for app in Flask.__apps__:
         app.before_request(journallog_in_before)
@@ -112,7 +126,10 @@ def logger(msg, *args, **extra):
     args = tuple(OmitLongString(v) for v in args)
     extra = OmitLongString(extra)
 
-    if isinstance(msg, (str, unicode)):
+    if sys.version_info.major < 3 and isinstance(msg, str):
+        msg = msg.decode('utf8')
+
+    if isinstance(msg, unicode):
         msg = (msg % args)[:1000]
     elif isinstance(msg, (dict, list, tuple)):
         msg = OmitLongString(msg)
@@ -139,7 +156,7 @@ def logger(msg, *args, **extra):
 
     getattr(glog, level)(jsonx.dumps(data, ensure_ascii=False))
 
-    if this.stream:
+    if this.output_to_terminal:
         getattr(glog, level)(msg, gname='stream')
 
 
@@ -335,8 +352,6 @@ class OmitLongString(dict):
             __data__.update(data)
 
         for name, value in __data__.items():
-            if isinstance(value, (unicode, str)) and len(value) > 1000:
-                value = '<Ellipsis>'
             dict.__setitem__(self, name, OmitLongString(value))
 
     def __new__(cls, __data__={}, **data):
@@ -345,5 +360,11 @@ class OmitLongString(dict):
 
         if isinstance(__data__, (list, tuple)):
             return __data__.__class__(cls(v) for v in __data__)
+
+        if sys.version_info.major < 3 and isinstance(__data__, str):
+            __data__ = __data__.decode('utf8')
+
+        if isinstance(__data__, (unicode, str)) and len(__data__) > 1000:
+            __data__ = '<Ellipsis>'
 
         return __data__
