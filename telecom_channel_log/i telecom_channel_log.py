@@ -40,10 +40,15 @@ except ImportError:
     requests = None
 
 if sys.version_info.major < 3:
-    from urllib import urlencode
+    from urlparse import urlparse
+    from urlparse import parse_qs
 else:
-    from urllib.parse import urlencode
+    from urllib.parse import urlparse
+    from urllib.parse import parse_qs
+
     unicode = str
+
+co_qualname = 'co_qualname' if sys.version_info >= (3, 11) else 'co_name'
 
 this = sys.modules[__name__]
 
@@ -141,17 +146,22 @@ def logger(msg, *args, **extra):
     data = {
         'app_name': this.appname + '_code',
         'level': level.upper(),
-        'logger': __package__,
         'log_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+        'logger': __package__,
+        'thread': threading.currentThread().ident,
         'code_message': msg,
-        'HOSTNAME': socket.gethostname(),
-        'pathName': f_back.f_code.co_filename,
-        'funcName': f_back.f_code.co_name,
-        'lineNo': f_back.f_lineno
+        'transaction_id': uuid.uuid4().hex,
+        'method_code': None,
+        'method_name': getattr(f_back.f_code, co_qualname),
+        'error_code': None,
+        'tag': None,
+        'host_name': socket.gethostname(),
+        'filename': f_back.f_code.co_filename,
+        'line': f_back.f_lineno
     }
 
     for k, v in extra.items():
-        if k not in data:
+        if data.get(k) is None:
             data[k] = v
 
     getattr(glog, level)(jsonx.dumps(data, ensure_ascii=False))
@@ -196,62 +206,89 @@ def journallog_in(response):
     if request.path == '/healthcheck':
         return response
 
-    view_func = current_app.view_functions.get(request.endpoint)
-    method_code = view_func.__name__ if view_func else None
+    parsed_url = urlparse(request.url)
+    address = parsed_url.scheme + '://' + parsed_url.netloc + parsed_url.path
 
-    try:
-        request_body = request.get_data()
-        request_data = jsonx.loads(request_body) if request_body else None
-    except ValueError:
-        request_data = None
+    view_func = current_app.view_functions.get(request.endpoint)
+    method_name = view_func.__name__ if view_func else None
+
+    if request.args:
+        request_data = request.args.to_dict()
     else:
-        request_data = OmitLongString(request_data)
+        try:
+            request_body = request.get_data()
+            request_data = jsonx.loads(request_body) if request_body else None
+        except ValueError:
+            request_data = None
 
     try:
         response_data = jsonx.loads(response.get_data())
     except ValueError:
-        response_data = response_code = None
+        response_data = response_code = order_id = \
+            province_code = city_code = \
+            account_type = account_num = \
+            response_account_type = response_account_num = None
     else:
-        response_data = OmitLongString(response_data)
-        try:
-            response_code = response_data.get('code')
-        except AttributeError:
-            response_code = None
+        if isinstance(response_data, dict):
+            head = response_data.get('head')
+            x = head if isinstance(head, dict) else request_data
+            response_code = x.get('code')
+            order_id = x.get('order_id')
+            province_code = x.get('province_code')
+            city_code = x.get('city_code')
+            account_type = x.get('account_type')
+            account_num = x.get('account_num')
+            response_account_type = x.get('response_account_type')
+            response_account_num = x.get('response_account_num')
+        else:
+            response_code = order_id = \
+                province_code = city_code = \
+                account_type = account_num = \
+                response_account_type = response_account_num = None
 
     response_time = datetime.now()
     response_time_str = response_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
+    total_time = round((response_time - g.request_time).total_seconds(), 3)
+
     glog.info(jsonx.dumps({
-        'host_name': socket.gethostname(),
-        'host': request.remote_addr,
         'app_name': this.appname + '_info',
         'level': 'INFO',
-        'logger': __package__,
         'log_time': response_time_str,
+        'logger': __package__,
+        'thread': threading.current_thread().ident,
         'transaction_id': uuid.uuid4().hex,
         'dialog_type': 'in',
-        'address': request.url,
+        'address': address,
         'fcode': request.headers.get('User-Agent'),
         'tcode': this.syscode,
-        'method_code': method_code,
+        'method_code': None,
+        'method_name': method_name,
         'http_method': request.method,
         'request_time': g.request_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
         'request_headers': dict(request.headers),
-        'request_payload': request_data,
-        'response_headers': dict(response.headers),
-        'response_payload': response_data,
+        'request_payload': OmitLongString(request_data),
         'response_time': response_time_str,
+        'response_headers': dict(response.headers),
+        'response_payload': OmitLongString(response_data),
         'response_code': response_code,
         'response_remark': None,
         'http_status_code': response.status_code,
-        'order_id': None,
-        'account_type': None,
-        'account_num': None,
-        'province_code': None,
-        'city_code': None,
-        'key_type': None,
-        'key_param': None,
-        'total_time': round((response_time - g.request_time).total_seconds(), 3)
+        'order_id': order_id,
+        'province_code': province_code,
+        'city_code': city_code,
+        'total_time': total_time,
+        'error_code': response_code,
+        'request_ip': request.remote_addr,
+        'host_ip': parsed_url.hostname,
+        'host_name': socket.gethostname(),
+        'account_type': account_type,
+        'account_num': account_num,
+        'response_account_type': response_account_type,
+        'response_account_num': response_account_num,
+        'user': None,
+        'tag': None,
+        'service_line': None
     }, ensure_ascii=False))
 
     return response
@@ -266,7 +303,11 @@ def journallog_out(func):
             **kw
     ):
         request_time = datetime.now()
-        response = func(self, method, url, **kw)
+        response = func(
+            self, method, url,
+            headers=headers, params=params, data=data, json=json,
+            **kw
+        )
         response_time = datetime.now()
         response_time_str = response_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
@@ -274,68 +315,92 @@ def journallog_out(func):
         if f_back.f_back is not None:
             f_back = f_back.f_back
 
-        if params:
-            tag = '&' if '?' in url else '?'
-            url += tag + urlencode(OmitLongString(params))
+        parse_url = urlparse(url)
+        address = parse_url.scheme + '://' + parse_url.netloc + parse_url.path
+        query_string = {k: v[0] for k, v in parse_qs(parse_url.query).items()}
 
-        if data:
-            if isinstance(data, (str, unicode)):
+        if params is not None:
+            params.update(query_string)
+            request_data = params
+        elif query_string:
+            request_data = query_string
+        elif data:
+            request_data = data
+            if isinstance(request_data, (str, unicode)):
                 try:
-                    request_data = jsonx.loads(data)
+                    request_data = json.loads(request_data)
                 except ValueError:
-                    request_data = data[:3000]
-            else:
-                request_data = data
+                    pass
         elif json:
             request_data = json
         else:
             request_data = None
-        request_data = OmitLongString(request_data)
 
         try:
             response_data = response.json()
         except ValueError:
-            response_data = response_code = None
+            response_data = response_code = order_id = \
+                province_code = city_code = \
+                account_type = account_num = \
+                response_account_type = response_account_num = None
         else:
-            response_data = OmitLongString(response_data)
-            try:
-                response_code = response_data.get('code')
-                if response_code is None:
-                    response_code = response_data.get('head', {}).get('code')
-            except AttributeError:
-                response_code = None
+            if isinstance(response_data, dict):
+                head = response_data.get('head')
+                x = head if isinstance(head, dict) else request_data
+                response_code = x.get('code')
+                order_id = x.get('order_id')
+                province_code = x.get('province_code')
+                city_code = x.get('city_code')
+                account_type = x.get('account_type')
+                account_num = x.get('account_num')
+                response_account_type = x.get('response_account_type')
+                response_account_num = x.get('response_account_num')
+            else:
+                response_code = order_id = \
+                    province_code = city_code = \
+                    account_type = account_num = \
+                    response_account_type = response_account_num = None
+
+        total_time = round((response_time - request_time).total_seconds(), 3)
 
         glog.info(jsonx.dumps({
-            'host_name': socket.gethostname(),
             'app_name': this.appname + '_info',
             'level': 'INFO',
-            'logger': __package__,
             'log_time': response_time_str,
+            'logger': __package__,
+            'thread': threading.current_thread().ident,
             'transaction_id': uuid.uuid4().hex,
             'dialog_type': 'out',
-            'address': url,
+            'address': address,
             'fcode': this.syscode,
             'tcode': this.syscode,
-            'method_code': f_back.f_code.co_name,
+            'method_code': None,
+            'method_name': getattr(f_back.f_code, co_qualname),
             'http_method': response.request.method,
             'request_time': request_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
             'request_headers': headers,
-            'request_payload': request_data,
-            'response_headers': dict(response.headers),
-            'response_payload': response_data,
+            'request_payload': OmitLongString(request_data),
             'response_time': response_time_str,
+            'response_headers': dict(response.headers),
+            'response_payload': OmitLongString(response_data),
             'response_code': response_code,
             'response_remark': None,
             'http_status_code': response.status_code,
-            'order_id': None,
-            'account_type': None,
-            'account_num': None,
-            'province_code': None,
-            'city_code': None,
-            'key_type': None,
-            'key_param': None,
-            'total_time':
-                round((response_time - request_time).total_seconds(), 3)
+            'order_id': order_id,
+            'province_code': province_code,
+            'city_code': city_code,
+            'total_time': total_time,
+            'error_code': response_code,
+            'request_ip': parse_url.hostname,
+            'host_ip': socket.gethostbyname(socket.gethostname()),
+            'host_name': socket.gethostname(),
+            'account_type': account_type,
+            'account_num': account_num,
+            'response_account_type': response_account_type,
+            'response_account_num': response_account_num,
+            'user': None,
+            'tag': None,
+            'service_line': None
         }, ensure_ascii=False))
 
         return response
