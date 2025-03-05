@@ -23,6 +23,7 @@ else:
     from flask import g
     from flask import request
     from flask import current_app
+    from flask import has_request_context
 
     def __new__(cls, *a, **kw):
         app = super(Flask, cls).__new__(cls)
@@ -139,6 +140,9 @@ def logger(msg, *args, **extra):
     elif isinstance(msg, (dict, list, tuple)):
         msg = OmitLongString(msg)
 
+    transaction_id = \
+        g.transaction_id if has_request_context() else uuid.uuid4().hex
+
     f_back = inspect.currentframe().f_back
     level = f_back.f_code.co_name
     f_back = f_back.f_back
@@ -150,7 +154,7 @@ def logger(msg, *args, **extra):
         'logger': __package__,
         'thread': threading.currentThread().ident,
         'code_message': msg,
-        'transaction_id': uuid.uuid4().hex,
+        'transaction_id': transaction_id,
         'method_code': None,
         'method_name': getattr(f_back.f_code, co_qualname),
         'error_code': None,
@@ -200,6 +204,13 @@ def trace(**extra):
 
 def journallog_in_before():
     g.request_time = datetime.now()
+
+    for name in 'Transaction-ID', 'transaction-id', 'transaction_id':
+        if name in request.headers:
+            g.transaction_id = request.headers[name]
+            break
+    else:
+        g.transaction_id = uuid.uuid4().hex
 
 
 def journallog_in(response):
@@ -257,7 +268,7 @@ def journallog_in(response):
         'log_time': response_time_str,
         'logger': __package__,
         'thread': threading.current_thread().ident,
-        'transaction_id': uuid.uuid4().hex,
+        'transaction_id': g.transaction_id,
         'dialog_type': 'in',
         'address': address,
         'fcode': request.headers.get('User-Agent'),
@@ -302,6 +313,19 @@ def journallog_out(func):
             headers=None, params=None, data=None, json=None,
             **kw
     ):
+        if headers is None:
+            headers = {}
+
+        if has_request_context():
+            transaction_id = headers['Transaction-ID'] = g.transaction_id
+        else:
+            for name in 'Transaction-ID', 'transaction-id', 'transaction_id':
+                if name in headers:
+                    transaction_id = headers[name]
+                    break
+            else:
+                transaction_id = headers['Transaction-ID'] = uuid.uuid4().hex
+
         request_time = datetime.now()
         response = func(
             self, method, url,
@@ -369,7 +393,7 @@ def journallog_out(func):
             'log_time': response_time_str,
             'logger': __package__,
             'thread': threading.current_thread().ident,
-            'transaction_id': uuid.uuid4().hex,
+            'transaction_id': transaction_id,
             'dialog_type': 'out',
             'address': address,
             'fcode': this.syscode,
